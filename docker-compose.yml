@@ -1,0 +1,46 @@
+# Local PostgreSQL 16 with seed data for Zusk.
+#
+#   docker compose up -d        # first start runs docker/seed/* (~30 s)
+#   docker compose down -v      # wipe the volume to re-seed from scratch
+#
+# Connect Zusk with: host localhost, port 54329, user studio,
+# password studio, database shop_dev (or warehouse).
+# Set ZUSK_PG_PORT to use a different host port.
+name: zusk
+
+services:
+  # One-shot: makes a self-signed localhost certificate on first start, so the
+  # SSL modes can be tested without a key checked into the repository.
+  certs:
+    image: postgres:16-alpine
+    command: ["sh", "/make-certs.sh"]
+    volumes:
+      - ./docker/make-certs.sh:/make-certs.sh:ro
+      - certs:/certs
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: zusk-postgres
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: studio
+      POSTGRES_PASSWORD: studio
+      POSTGRES_DB: shop_dev
+    ports:
+      - "${ZUSK_PG_PORT:-54329}:5432"
+    volumes:
+      - ./docker/seed:/docker-entrypoint-initdb.d:ro
+      - certs:/certs:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -h forces TCP, which only answers once the init scripts have finished.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U studio -d shop_dev"]
+      interval: 2s
+      timeout: 3s
+      retries: 90
+
+volumes:
+  pgdata:
+  certs:
