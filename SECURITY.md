@@ -6,7 +6,7 @@ Zusk holds database credentials and runs SQL against real servers, so security r
 
 **Please don't open a public issue.** Report it privately through GitHub instead:
 
-1. Go to the [Security tab](https://github.com/shubhranka-z/zusk/security) of this repository.
+1. Go to the [Security tab](https://github.com/shubhranka/zusk/security) of this repository.
 2. Click **Report a vulnerability**.
 3. Describe the problem, how to reproduce it, and what an attacker could do with it.
 

@@ -4,7 +4,7 @@ Thanks for your interest in Zusk! Bug reports, ideas and pull requests are all w
 
 ## Before you start
 
-- **Found a bug?** [Open an issue](https://github.com/shubhranka-z/zusk/issues/new/choose) with the steps to reproduce it, your OS and your PostgreSQL version.
+- **Found a bug?** [Open an issue](https://github.com/shubhranka/zusk/issues/new/choose) with the steps to reproduce it, your OS and your PostgreSQL version.
 - **Have an idea?** Open a feature request first, so we can agree on the approach before you spend time on code.
 - **Found a security problem?** Please don't open a public issue. See [SECURITY.md](SECURITY.md).
 

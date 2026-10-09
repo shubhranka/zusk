@@ -18,4 +18,4 @@ The first public release.
 - Saved connections with passwords in the OS keychain, and five TLS modes.
 - Saved queries, accent colours, row density and zebra rows.
 
-[0.1.0]: https://github.com/shubhranka-z/zusk/releases/tag/v0.1.0
+[0.1.0]: https://github.com/shubhranka/zusk/releases/tag/v0.1.0

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Zusk — a desktop PostgreSQL client"
 authors = ["Shubhranka Varma"]
 license = "MIT"
-repository = "https://github.com/shubhranka-z/zusk"
+repository = "https://github.com/shubhranka/zusk"
 edition = "2021"
 
 [lib]

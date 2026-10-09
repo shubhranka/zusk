@@ -33,7 +33,7 @@
     "shortDescription": "A calm, fast desktop client for PostgreSQL",
     "longDescription": "Zusk is a desktop client for exploring and querying PostgreSQL. Sessions start read-only, enforced by the server, and passwords live in the OS keychain.",
     "copyright": "Copyright © 2026 Shubhranka Varma",
-    "homepage": "https://github.com/shubhranka-z/zusk",
+    "homepage": "https://github.com/shubhranka/zusk",
     "license": "MIT",
     "icon": [
       "icons/32x32.png",

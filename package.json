@@ -5,12 +5,12 @@
   "description": "A calm, fast desktop client for PostgreSQL. Read-only until you say otherwise.",
   "license": "MIT",
   "author": "Shubhranka Varma",
-  "homepage": "https://github.com/shubhranka-z/zusk#readme",
+  "homepage": "https://github.com/shubhranka/zusk#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/shubhranka-z/zusk.git"
+    "url": "git+https://github.com/shubhranka/zusk.git"
   },
-  "bugs": "https://github.com/shubhranka-z/zusk/issues",
+  "bugs": "https://github.com/shubhranka/zusk/issues",
   "type": "module",
   "scripts": {
     "dev": "vite",

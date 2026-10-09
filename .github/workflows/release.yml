@@ -68,7 +68,7 @@ jobs:
           releaseBody: |
             Download the installer for your platform from the assets below.
 
-            These builds are not code-signed yet, so your OS will warn you the first time you open Zusk. The README explains how to open it: https://github.com/shubhranka-z/zusk#download
+            These builds are not code-signed yet, so your OS will warn you the first time you open Zusk. The README explains how to open it: https://github.com/shubhranka/zusk#download
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

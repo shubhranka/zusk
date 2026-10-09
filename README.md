@@ -11,7 +11,7 @@
 ![React 19](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)
-[![CI](https://img.shields.io/github/actions/workflow/status/shubhranka-z/zusk/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/shubhranka-z/zusk/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/shubhranka/zusk/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/shubhranka/zusk/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-3DA639?style=flat-square)](LICENSE)
 
 [Features](#features) · [Download](#download) · [Run from source](#run-from-source) · [Shortcuts](#keyboard-shortcuts) · [How it works](#how-it-works) · [Contributing](#contributing)
@@ -158,7 +158,7 @@ To make changes, flip the **Read-only** switch next to **Run** or in the status 
 
 ## Download
 
-Get the latest installer for macOS, Windows or Linux from the [**Releases page**](https://github.com/shubhranka-z/zusk/releases/latest).
+Get the latest installer for macOS, Windows or Linux from the [**Releases page**](https://github.com/shubhranka/zusk/releases/latest).
 
 > [!IMPORTANT]
 > Zusk isn't code-signed yet, so your OS will warn you the first time you open it.
