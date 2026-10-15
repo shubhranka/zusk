@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use serde::Deserialize;
 use tauri::State;
 
-use crate::ai::{self, AiInput, AiProvider, AiStatus, AiStore, FixInput, FixResult};
+use crate::ai::{self, AiInput, AiProvider, AiSettings, AiStatus, AiStore, ChatInput, ChatResult, FixInput, FixResult};
 use crate::db::catalog::{self, RelationRef, SchemaInfo, SchemaObjects, TableDetails};
 use crate::db::query::{self, RunResult};
 use crate::db::{ConnectParams, ServerInfo, Session, Sessions, SslMode};
@@ -240,11 +240,12 @@ impl AppState {
         Ok(format!("{} replied “{}”", settings.model, ai::one_line(&reply, 60)))
     }
 
+    fn ai_settings(&self) -> AppResult<AiSettings> {
+        self.ai.get().ok_or_else(|| AppError::invalid("Set up an AI provider first.").with_hint("Open Settings → AI."))
+    }
+
     pub async fn fix_sql(&self, id: String, input: FixInput) -> AppResult<FixResult> {
-        let settings = self
-            .ai
-            .get()
-            .ok_or_else(|| AppError::invalid("Set up an AI provider first.").with_hint("Open Settings → AI."))?;
+        let settings = self.ai_settings()?;
         let key = self.ai_key(settings.provider).await?;
         let session = self.sessions.get(&id).await?;
         // Best effort: a fix without schema context is still worth asking for.
@@ -255,6 +256,30 @@ impl AppState {
         let (system, user) = ai::fix_prompt(&input, &session.info.version, &schema);
         let reply = ai::complete(&self.http, &settings, key.as_deref(), &system, &user).await?;
         ai::parse_reply(&reply, &input.sql)
+    }
+
+    /// One chat turn about the editor's SQL. `id` is the active connection,
+    /// if any; without one the model just gets no schema.
+    pub async fn chat_sql(&self, id: Option<String>, input: ChatInput) -> AppResult<ChatResult> {
+        let settings = self.ai_settings()?;
+        let key = self.ai_key(settings.provider).await?;
+        let session = match id {
+            Some(id) => self.sessions.get(&id).await.ok(),
+            None => None,
+        };
+        let (version, schema) = match &session {
+            Some(session) => {
+                let schema = match session.meta().await {
+                    Ok(client) => ai::schema_context(&client, &input.schema_hint()).await.unwrap_or_default(),
+                    Err(_) => String::new(),
+                };
+                (session.info.version.clone(), schema)
+            }
+            None => (String::new(), String::new()),
+        };
+        let (system, messages) = ai::chat_prompt(&input, &version, &schema)?;
+        let reply = ai::converse(&self.http, &settings, key.as_deref(), &system, &messages).await?;
+        ai::parse_chat_reply(&reply, &input.sql)
     }
 }
 
@@ -358,4 +383,9 @@ pub async fn test_ai(state: State<'_, AppState>, input: AiInput) -> AppResult<St
 #[tauri::command]
 pub async fn fix_sql(state: State<'_, AppState>, id: String, input: FixInput) -> AppResult<FixResult> {
     state.fix_sql(id, input).await
+}
+
+#[tauri::command]
+pub async fn chat_sql(state: State<'_, AppState>, id: Option<String>, input: ChatInput) -> AppResult<ChatResult> {
+    state.chat_sql(id, input).await
 }

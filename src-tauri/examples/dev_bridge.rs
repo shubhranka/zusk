@@ -17,7 +17,7 @@ use axum::http::{HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Json, Router};
-use zusk_lib::ai::{AiInput, AiStore, FixInput};
+use zusk_lib::ai::{AiInput, AiStore, ChatInput, FixInput};
 use zusk_lib::commands::{AppState, ConnectionInput};
 use zusk_lib::error::{AppError, AppResult};
 use zusk_lib::profiles::ProfileStore;
@@ -84,6 +84,12 @@ struct FixArg {
     input: FixInput,
 }
 
+#[derive(Deserialize)]
+struct ChatArg {
+    id: Option<String>,
+    input: ChatInput,
+}
+
 fn args<T: DeserializeOwned>(value: Value) -> AppResult<T> {
     serde_json::from_value(value).map_err(|e| AppError::invalid(format!("Bad arguments: {e}")))
 }
@@ -131,6 +137,10 @@ async fn dispatch(state: &AppState, command: &str, a: Value) -> AppResult<Value>
         "fix_sql" => {
             let a: FixArg = args(a)?;
             json(state.fix_sql(a.id, a.input).await)
+        }
+        "chat_sql" => {
+            let a: ChatArg = args(a)?;
+            json(state.chat_sql(a.id, a.input).await)
         }
         other => Err(AppError::invalid(format!("Unknown command {other}"))),
     }

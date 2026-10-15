@@ -121,10 +121,11 @@ export function SqlEditor({ onSelectionChange }: { onSelectionChange(hasSelectio
         })
         view.dispatch(setDiagnostics(view.state, []))
       },
-      replaceRange: (from, to, text) => {
+      replaceRange: (from, to, text, { select = true } = {}) => {
+        const end = from + text.length
         view.dispatch({
           changes: { from, to, insert: text },
-          selection: { anchor: from, head: from + text.length },
+          selection: select ? { anchor: from, head: end } : { anchor: end },
           scrollIntoView: true,
           // Its own undo step, even when it lands right after typing.
           annotations: isolateHistory.of('full'),

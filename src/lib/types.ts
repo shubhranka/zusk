@@ -175,3 +175,26 @@ export interface FixResult {
   sql: string
   explanation: string
 }
+
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  text: string
+  /** The editor contents an assistant turn proposed. */
+  sql?: string
+}
+
+export interface ChatInput {
+  /** Everything in the editor right now. */
+  sql: string
+  /** The conversation so far, oldest first, ending with the user's request. */
+  turns: ChatTurn[]
+  /** The editor is rendered as a Jinja template before it runs. */
+  jinja: boolean
+}
+
+export interface ChatResult {
+  /** What the model said, without the SQL. */
+  reply: string
+  /** The new editor contents, or null when nothing should change. */
+  sql: string | null
+}

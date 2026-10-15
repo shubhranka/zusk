@@ -109,6 +109,7 @@ All database work happens in a Rust core. The interface never talks to Postgres 
 - **Run what you mean.** <kbd>⌘</kbd><kbd>↵</kbd> runs the selection if there is one, otherwise the whole editor. **Stop** cancels the query on the server.
 - **Useful errors.** Failures show the SQLSTATE code, Postgres' detail and hint, and the exact line and column, underlined in the editor.
 - **Fix with AI.** When a statement fails, **Fix with AI** asks your model to correct it and swaps in the fix, which you can undo with <kbd>⌘</kbd><kbd>Z</kbd>. Set it up under **Settings → AI** with Anthropic, Gemini, or any OpenAI-compatible server (OpenAI, OpenRouter, Ollama, LM Studio). It sends the failing statement, the error, and the names and types of the tables involved, never row data. The API key is stored in the OS keychain.
+- **Chat with your SQL.** Click **Chat** in the editor bar, or press <kbd>⌘</kbd><kbd>J</kbd>, and ask for a change in plain language, like "only orders from the last 30 days". The model rewrites the editor, and the reply shows a diff of what changed, with **Undo**. Ask a question instead and it just answers. Nothing runs until you run it. Like Fix with AI, it sends the editor's SQL, your messages, and the names and types of the tables they mention, never row data.
 - **Jinja templates.** Turn on **Jinja** in the editor bar to render the editor as a template before it runs, in the dialect of Superset's SQL Lab: `{{ from_dttm }}`, `{{ to_dttm }}`, `filter_values()`, `get_filters()`, `url_param()` and the `where_in` filter. Set their values as JSON under **Variables**, which also previews the rendered SQL. Template errors are underlined in the editor. When the rendered SQL fails, the error shows the lines around the failure in the rendered SQL.
 - **Saved queries.** Press <kbd>⌘</kbd><kbd>S</kbd> to keep a query in the sidebar and in the jump box.
 
@@ -153,6 +154,7 @@ To make changes, flip the **Read-only** switch next to **Run** or in the status 
 | Jump to a table, view or saved query | <kbd>⌘</kbd> <kbd>K</kbd> | <kbd>Ctrl</kbd> <kbd>K</kbd> |
 | Run the selection, or everything | <kbd>⌘</kbd> <kbd>↵</kbd> | <kbd>Ctrl</kbd> <kbd>Enter</kbd> |
 | Save the current query | <kbd>⌘</kbd> <kbd>S</kbd> | <kbd>Ctrl</kbd> <kbd>S</kbd> |
+| Open, focus or close the chat | <kbd>⌘</kbd> <kbd>J</kbd> | <kbd>Ctrl</kbd> <kbd>J</kbd> |
 | Copy the selected cell | <kbd>⌘</kbd> <kbd>C</kbd> | <kbd>Ctrl</kbd> <kbd>C</kbd> |
 | Copy the selected row | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | <kbd>Shift</kbd> <kbd>Ctrl</kbd> <kbd>C</kbd> |
 | Move around the grid | <kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> | <kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> |
@@ -227,7 +229,7 @@ src-tauri/src/
   db/query.rs              running SQL, read-only enforcement, row cap, types
   db/splitter.rs           psql-style statement splitter
   db/catalog.rs            pg_catalog queries for the explorer and Structure tab
-  ai.rs                    AI providers (Anthropic, Gemini, OpenAI-compatible) and the Fix with AI prompt
+  ai.rs                    AI providers (Anthropic, Gemini, OpenAI-compatible), and the Fix with AI and chat prompts
   profiles.rs              saved connections (JSON in the app config dir, no passwords)
   secrets.rs               passwords and API keys in the OS keychain
 docker/                    seed SQL, and the script that makes a localhost TLS certificate

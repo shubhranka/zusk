@@ -126,7 +126,8 @@ function EditorCard({ run, hasSelection, onSelectionChange }: { run: RunState; h
   const editorHeight = useApp((s) => s.settings.editorHeight)
   const readOnly = useApp((s) => s.readOnly)
   const jinja = useApp((s) => s.settings.jinja)
-  const { runQuery, cancelQuery, setReadOnly, updateSettings, setDialog } = useApp.getState()
+  const chatOpen = useApp((s) => s.settings.chatOpen)
+  const { runQuery, cancelQuery, setReadOnly, updateSettings, setDialog, toggleChat } = useApp.getState()
   const running = run.status === 'running'
   const now = useNow(running)
   const [dragging, setDragging] = useState(false)
@@ -156,6 +157,15 @@ function EditorCard({ run, hasSelection, onSelectionChange }: { run: RunState; h
           <span className={run.status === 'error' && run.error?.kind !== 'cancelled' ? 'status error' : 'status'} aria-live="polite">
             {statusText(run, now)}
           </span>
+          <button
+            className="chat-toggle"
+            aria-pressed={chatOpen}
+            onClick={() => toggleChat()}
+            title={chatOpen ? `Close the chat (${shortcut('J')})` : `Chat with AI to change the SQL (${shortcut('J')})`}
+          >
+            <SparkleIcon size={13} />
+            Chat
+          </button>
           <div className="jinja-group">
             <button
               className="jinja-toggle"

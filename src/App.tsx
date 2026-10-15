@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 
 import { AiSettingsDialog } from './components/AiSettingsDialog'
+import { ChatPanel } from './components/chat/ChatPanel'
 import { ConnectionDialog } from './components/connections/ConnectionDialog'
 import { Explorer } from './components/explorer/Explorer'
 import { Footer } from './components/Footer'
@@ -8,7 +9,8 @@ import { Header } from './components/Header'
 import { SaveQueryDialog } from './components/SaveQueryDialog'
 import { TemplateVarsDialog } from './components/TemplateVarsDialog'
 import { Workspace } from './components/Workspace'
-import { focusJumpBox, isMac } from './lib/platform'
+import { editorBridge } from './lib/editorBridge'
+import { focusChatInput, focusJumpBox, isMac } from './lib/platform'
 import { useApp } from './store/app'
 
 let started = false
@@ -18,6 +20,7 @@ export function App() {
   const density = useApp((s) => s.settings.density)
   const dialog = useApp((s) => s.dialog)
   const toasts = useApp((s) => s.toasts)
+  const chatOpen = useApp((s) => s.settings.chatOpen)
 
   useEffect(() => {
     document.documentElement.style.setProperty('--accent', accent)
@@ -49,6 +52,16 @@ export function App() {
       } else if (key === 'enter' && !inEditor && !useApp.getState().dialog) {
         e.preventDefault()
         void useApp.getState().runQuery()
+      } else if (key === 'j') {
+        // Open the chat, focus it if it's open, or close it from inside.
+        e.preventDefault()
+        const { settings, toggleChat } = useApp.getState()
+        if (!settings.chatOpen) toggleChat(true)
+        else if (!(e.target as HTMLElement | null)?.closest?.('.chat')) focusChatInput()
+        else {
+          toggleChat(false)
+          editorBridge.get()?.focus()
+        }
       }
     }
     window.addEventListener('keydown', onKey)
@@ -61,6 +74,7 @@ export function App() {
       <div className="app-body">
         <Explorer />
         <Workspace />
+        {chatOpen && <ChatPanel />}
       </div>
       <Footer />
 

@@ -6,6 +6,8 @@ import type {
   AiInput,
   AiStatus,
   AppError,
+  ChatInput,
+  ChatResult,
   ConnectionInput,
   ConnectionProfile,
   FixInput,
@@ -77,4 +79,6 @@ export const api = {
   saveAiSettings: (input: AiInput) => call<AiStatus>('save_ai_settings', { input }),
   testAi: (input: AiInput) => call<string>('test_ai', { input }),
   fixSql: (id: string, input: FixInput) => call<FixResult>('fix_sql', { id, input }),
+  /** `id` is the active connection, for schema context; null works without one. */
+  chatSql: (id: string | null, input: ChatInput) => call<ChatResult>('chat_sql', { id, input }),
 }

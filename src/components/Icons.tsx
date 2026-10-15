@@ -218,6 +218,18 @@ export const AlertIcon = ({ size = 15, ...p }: P) => (
   </svg>
 )
 
+export const SendIcon = ({ size = 15, ...p }: P) => (
+  <svg {...base(size, p)} stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 19V5M6 11l6-6 6 6" />
+  </svg>
+)
+
+export const CheckIcon = ({ size = 13, ...p }: P) => (
+  <svg {...base(size, p)} stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+)
+
 export const SparkleIcon = ({ size = 14, ...p }: P) => (
   <svg {...base(size, p)} stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <path d="M10 3.5l1.6 4.9 4.9 1.6-4.9 1.6L10 16.5l-1.6-4.9L3.5 10l4.9-1.6z" />

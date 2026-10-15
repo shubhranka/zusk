@@ -119,7 +119,9 @@ function SettingsButton() {
           </button>
           <h2>AI</h2>
           <div className="field-row">
-            <span className="label">{ai ? `${aiProviderLabel(ai)} · ${ai.model}` : 'Not set up. Fix with AI corrects failed queries.'}</span>
+            <span className="label">
+              {ai ? `${aiProviderLabel(ai)} · ${ai.model}` : 'Not set up. Fix with AI corrects failed queries, and the chat edits SQL for you.'}
+            </span>
             <button
               className="btn-secondary small"
               style={{ alignSelf: 'flex-start' }}
@@ -132,7 +134,7 @@ function SettingsButton() {
             </button>
           </div>
           <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-            {shortcut('K')} jump · {shortcut('↵')} run · {shortcut('S')} save query
+            {shortcut('K')} jump · {shortcut('↵')} run · {shortcut('S')} save query · {shortcut('J')} chat
           </span>
         </div>
       )}

@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 
 import { api, toAppError } from '../lib/api'
-import { editorBridge } from '../lib/editorBridge'
+import { changedRange } from '../lib/diff'
+import { editorBridge, type EditorHandle } from '../lib/editorBridge'
 import { fixTarget, lineCol } from '../lib/fix'
 import { previewQuery } from '../lib/format'
+import { shortcut } from '../lib/platform'
 import { load, loadList, loadString, save, saveString } from '../lib/storage'
 import { DEFAULT_TEMPLATE_VARS, parseTemplateVars } from '../lib/template'
 import type {
@@ -73,6 +75,28 @@ export interface Settings {
   editorHeight: number
   /** Render the editor as a Jinja template before running it. */
   jinja: boolean
+  /** Show the chat panel beside the editor. */
+  chatOpen: boolean
+}
+
+export interface ChatMessage {
+  id: number
+  role: 'user' | 'assistant'
+  text: string
+  /** Assistant: the editor contents it proposed, and what the editor held when it was asked. */
+  sql?: string
+  before?: string
+  /** Assistant: the editor changed while the reply was on its way, so it wasn't applied. */
+  stale?: boolean
+}
+
+export interface ChatState {
+  messages: ChatMessage[]
+  status: 'idle' | 'working'
+  /** Why the last request failed; it can be retried. */
+  error?: AppError
+  /** The message whose SQL the chat last put in the editor. */
+  appliedId?: number
 }
 
 export type FixState = { status: 'working' } | { status: 'applied'; explanation: string } | { status: 'error'; error: AppError }
@@ -123,7 +147,7 @@ const TEMPLATE_VARS_KEY = 'zusk.templateVars'
 
 export const ACCENTS = ['#F2A33A', '#6FB6F0', '#5CC8A8', '#E58FB8']
 
-const DEFAULT_SETTINGS: Settings = { accent: ACCENTS[0], density: 'comfortable', zebra: true, editorHeight: 196, jinja: false }
+const DEFAULT_SETTINGS: Settings = { accent: ACCENTS[0], density: 'comfortable', zebra: true, editorHeight: 196, jinja: false, chatOpen: false }
 
 export const nodeKey = (...parts: string[]) => parts.map(encodeURIComponent).join('/')
 export const detailsKey = (schema: string, name: string) => `${schema}\u0000${name}`
@@ -133,6 +157,8 @@ const emptyTree = (): TreeData => ({ objects: {}, details: {} })
 let runSeq = 0
 let toastSeq = 0
 let queryCounter = 1
+let chatMessageSeq = 0
+let chatSeq = 0
 
 function message(e: unknown): string {
   return toAppError(e).message
@@ -160,6 +186,7 @@ export interface AppStore {
   ai: AiStatus | null
   /** JSON text of the Jinja template variables, as the user typed it. */
   templateVars: string
+  chat: ChatState
 
   init(): Promise<void>
   updateSettings(patch: Partial<Settings>): void
@@ -198,6 +225,16 @@ export interface AppStore {
   // AI
   saveAiSettings(input: AiInput): Promise<AiStatus>
   fixQuery(): Promise<void>
+
+  // chat
+  toggleChat(open?: boolean): void
+  sendChat(text: string): Promise<void>
+  retryChat(): Promise<void>
+  /** Puts a reply's SQL in the editor again, e.g. one that arrived after the editor changed. */
+  applyChat(id: number): void
+  /** Puts back what the editor held before a reply, if nothing changed since. */
+  revertChat(id: number): void
+  clearChat(): void
 
   // saved queries
   saveCurrentQuery(): void
@@ -246,6 +283,50 @@ export const useApp = create<AppStore>((set, get) => {
     if (e.kind === 'notConnected') patchConn(id, { status: 'disconnected', info: undefined })
   }
 
+  /** Puts `sql` in the editor as one undoable edit that touches only what differs. */
+  function putInEditor(editor: EditorHandle, sql: string) {
+    const { from, to, text } = changedRange(editor.getText(), sql)
+    editor.replaceRange(from, to, text, { select: false })
+  }
+
+  /** Sends the conversation, ending with the user's request, and applies the reply. */
+  async function askChat() {
+    const { ai, activeId, conns, settings, chat } = get()
+    const editor = editorBridge.get()
+    if (!editor) return
+    if (!ai) {
+      set({ dialog: { kind: 'ai' } })
+      return
+    }
+    const before = editor.getText()
+    const seq = ++chatSeq
+    const patchChat = (patch: Partial<ChatState>) => set((s) => (seq === chatSeq ? { chat: { ...s.chat, ...patch } } : {}))
+    patchChat({ status: 'working', error: undefined })
+    try {
+      const connId = activeId && conns[activeId]?.status === 'connected' ? activeId : null
+      const turns = chat.messages.map(({ role, text, sql }) => ({ role, text, sql }))
+      const result = await api.chatSql(connId, { sql: before, turns, jinja: settings.jinja })
+      if (seq !== chatSeq) return
+      const message: ChatMessage = { id: ++chatMessageSeq, role: 'assistant', text: result.reply }
+      let appliedId = get().chat.appliedId
+      if (result.sql != null) {
+        message.sql = result.sql
+        message.before = before
+        // Only rewrite the editor if it still holds what the model saw.
+        const current = editorBridge.get()
+        if (current?.getText() === before) {
+          putInEditor(current, result.sql)
+          appliedId = message.id
+        } else {
+          message.stale = true
+        }
+      }
+      patchChat({ status: 'idle', messages: [...get().chat.messages, message], appliedId })
+    } catch (e) {
+      patchChat({ status: 'idle', error: toAppError(e) })
+    }
+  }
+
   return {
     settings: load(SETTINGS_KEY, DEFAULT_SETTINGS),
     readOnly: true,
@@ -264,6 +345,7 @@ export const useApp = create<AppStore>((set, get) => {
     toasts: [],
     ai: null,
     templateVars: loadString(TEMPLATE_VARS_KEY) ?? DEFAULT_TEMPLATE_VARS,
+    chat: { messages: [], status: 'idle' },
 
     async init() {
       try {
@@ -620,6 +702,53 @@ export const useApp = create<AppStore>((set, get) => {
       } catch (e) {
         setFix({ status: 'error', error: toAppError(e) })
       }
+    },
+
+    // -------------------------------------------------------------- chat
+
+    toggleChat(open) {
+      get().updateSettings({ chatOpen: open ?? !get().settings.chatOpen })
+    },
+
+    async sendChat(text) {
+      const request = text.trim()
+      if (!request || get().chat.status === 'working') return
+      const message: ChatMessage = { id: ++chatMessageSeq, role: 'user', text: request }
+      set((s) => ({ chat: { ...s.chat, messages: [...s.chat.messages, message] } }))
+      await askChat()
+    },
+
+    async retryChat() {
+      if (get().chat.status !== 'working') await askChat()
+    },
+
+    applyChat(id) {
+      const message = get().chat.messages.find((m) => m.id === id)
+      const editor = editorBridge.get()
+      if (message?.sql == null || !editor) return
+      putInEditor(editor, message.sql)
+      set((s) => ({
+        chat: { ...s.chat, appliedId: id, messages: s.chat.messages.map((m) => (m.id === id ? { ...m, stale: false } : m)) },
+      }))
+    },
+
+    revertChat(id) {
+      const message = get().chat.messages.find((m) => m.id === id)
+      const editor = editorBridge.get()
+      if (message?.sql == null || message.before == null || !editor) return
+      // Don't throw away edits made after the reply.
+      if (editor.getText() !== message.sql) {
+        get().toast(`The editor changed since. Undo in the editor with ${shortcut('Z')} instead.`)
+        return
+      }
+      putInEditor(editor, message.before)
+      set((s) => ({ chat: { ...s.chat, appliedId: undefined } }))
+    },
+
+    clearChat() {
+      // Drops a reply that is still on its way.
+      chatSeq++
+      set({ chat: { messages: [], status: 'idle' } })
     },
 
     // -------------------------------------------------------------- saved queries

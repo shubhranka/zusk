@@ -44,6 +44,7 @@ pub fn run() {
             commands::save_ai_settings,
             commands::test_ai,
             commands::fix_sql,
+            commands::chat_sql,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Zusk");
