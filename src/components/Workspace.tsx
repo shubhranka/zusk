@@ -1,12 +1,12 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 import { formatCount, formatMs, plural } from '../lib/format'
-import { MOD } from '../lib/platform'
+import { MOD, shortcut } from '../lib/platform'
 import type { RunResult } from '../lib/types'
 import { filterRows } from '../lib/values'
 import { detailsKey, useApp, type RunState } from '../store/app'
 import { SqlEditor } from './editor/SqlEditor'
-import { AlertIcon, FilterIcon, LockIcon, PlayIcon, StopIcon } from './Icons'
+import { AlertIcon, FilterIcon, LockIcon, PlayIcon, SparkleIcon, StopIcon } from './Icons'
 import { ResultsGrid } from './results/ResultsGrid'
 import { StructureTable } from './results/StructureTable'
 
@@ -326,6 +326,9 @@ function DataView({ run, rows }: { run: RunState; rows: (string | null)[][] }) {
 
 function ErrorPanel({ run }: { run: RunState }) {
   const error = run.error!
+  const fix = run.fix
+  const { fixQuery, setDialog } = useApp.getState()
+  const canFix = error.kind === 'database' && run.sql != null && fix?.status !== 'applied'
   const heading: Record<string, string> = {
     database: 'Query failed',
     readOnly: 'Blocked by read-only mode',
@@ -342,6 +345,17 @@ function ErrorPanel({ run }: { run: RunState }) {
           <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
             line {run.errorAt.line}, column {run.errorAt.col}
           </span>
+        )}
+        {canFix && (
+          <button
+            className="btn-secondary small fix-btn"
+            onClick={() => void fixQuery()}
+            disabled={fix?.status === 'working'}
+            title="Ask the AI model to correct the statement that failed"
+          >
+            <SparkleIcon />
+            {fix?.status === 'working' ? 'Fixing…' : 'Fix with AI'}
+          </button>
         )}
       </div>
       <div className="message">{error.message}</div>
@@ -361,6 +375,27 @@ function ErrorPanel({ run }: { run: RunState }) {
         <div className="extra">
           <span>Transaction: </span>
           the open transaction is aborted — run ROLLBACK to continue.
+        </div>
+      )}
+      {fix?.status === 'applied' && (
+        <div className="fix-note" role="status">
+          <SparkleIcon />
+          <span>
+            {fix.explanation} Run it again with {shortcut('↵')}, or undo with {shortcut('Z')}.
+          </span>
+        </div>
+      )}
+      {fix?.status === 'error' && (
+        <div className="fix-note error" role="alert">
+          <span>
+            {fix.error.message}
+            {fix.error.hint ? ` ${fix.error.hint}` : ''}
+          </span>
+          {fix.error.kind === 'ai' && (
+            <button className="link-btn" onClick={() => setDialog({ kind: 'ai' })}>
+              AI settings
+            </button>
+          )}
         </div>
       )}
     </div>

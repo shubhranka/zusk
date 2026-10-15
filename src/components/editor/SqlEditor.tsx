@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, indentWithTab, isolateHistory } from '@codemirror/commands'
 import { PostgreSQL, sql, SQLDialect, type SQLNamespace } from '@codemirror/lang-sql'
 import { bracketMatching, indentOnInput } from '@codemirror/language'
 import { setDiagnostics } from '@codemirror/lint'
@@ -115,6 +115,16 @@ export function SqlEditor({ onSelectionChange }: { onSelectionChange(hasSelectio
           changes: { from: 0, to: view.state.doc.length, insert: text },
           selection: { anchor: text.length },
           scrollIntoView: true,
+        })
+        view.dispatch(setDiagnostics(view.state, []))
+      },
+      replaceRange: (from, to, text) => {
+        view.dispatch({
+          changes: { from, to, insert: text },
+          selection: { anchor: from, head: from + text.length },
+          scrollIntoView: true,
+          // Its own undo step, even when it lands right after typing.
+          annotations: isolateHistory.of('full'),
         })
         view.dispatch(setDiagnostics(view.state, []))
       },

@@ -2,9 +2,12 @@ import { create } from 'zustand'
 
 import { api, toAppError } from '../lib/api'
 import { editorBridge } from '../lib/editorBridge'
+import { fixTarget, lineCol } from '../lib/fix'
 import { previewQuery } from '../lib/format'
 import { load, loadList, loadString, save, saveString } from '../lib/storage'
 import type {
+  AiInput,
+  AiStatus,
   AppError,
   ConnectionInput,
   ConnectionProfile,
@@ -69,15 +72,22 @@ export interface Settings {
   editorHeight: number
 }
 
+export type FixState = { status: 'working' } | { status: 'applied'; explanation: string } | { status: 'error'; error: AppError }
+
 export interface RunState {
   status: 'idle' | 'running' | 'done' | 'error'
   connId?: string
   startedAt?: number
+  /** The SQL that was run, and where it starts in the editor. */
+  sql?: string
+  offset?: number
   /** Last successful result; kept visible while the next run is going. */
   result?: RunResult
   error?: AppError
   /** 1-based editor line/column the error points at. */
   errorAt?: { line: number; col: number }
+  /** "Fix with AI" for this run's error. */
+  fix?: FixState
 }
 
 export interface TreeData {
@@ -88,7 +98,7 @@ export interface TreeData {
   relations?: RelationRef[]
 }
 
-export type DialogState = { kind: 'connection'; id?: string } | { kind: 'saveQuery' } | null
+export type DialogState = { kind: 'connection'; id?: string } | { kind: 'saveQuery' } | { kind: 'ai' } | null
 
 export interface Toast {
   id: number
@@ -140,6 +150,8 @@ export interface AppStore {
   saved: SavedQuery[]
   dialog: DialogState
   toasts: Toast[]
+  /** The saved AI provider, or null when it isn't set up. */
+  ai: AiStatus | null
 
   init(): Promise<void>
   updateSettings(patch: Partial<Settings>): void
@@ -173,6 +185,10 @@ export interface AppStore {
   cancelQuery(): Promise<void>
   setView(view: ResultView): void
   setRowFilter(value: string): void
+
+  // AI
+  saveAiSettings(input: AiInput): Promise<AiStatus>
+  fixQuery(): Promise<void>
 
   // saved queries
   saveCurrentQuery(): void
@@ -237,11 +253,12 @@ export const useApp = create<AppStore>((set, get) => {
     saved: loadList<SavedQuery>(SAVED_KEY),
     dialog: null,
     toasts: [],
+    ai: null,
 
     async init() {
       try {
-        const [profiles, readOnly] = await Promise.all([api.listConnections(), api.getReadOnly()])
-        set({ profiles, readOnly })
+        const [profiles, readOnly, ai] = await Promise.all([api.listConnections(), api.getReadOnly(), api.getAiSettings()])
+        set({ profiles, readOnly, ai })
         const last = loadString(LAST_CONN_KEY)
         const initial = profiles.find((p) => p.id === last) ?? (profiles.length === 1 ? profiles[0] : undefined)
         if (initial) {
@@ -492,18 +509,18 @@ export const useApp = create<AppStore>((set, get) => {
 
       const seq = ++runSeq
       editor.showError(null)
-      set((s) => ({ run: { status: 'running', connId: activeId, startedAt: performance.now(), result: s.run.result } }))
+      set((s) => ({ run: { status: 'running', connId: activeId, startedAt: performance.now(), sql, offset, result: s.run.result } }))
       try {
         const result = await api.runQuery(activeId, sql)
         if (seq !== runSeq) return
-        set({ run: { status: 'done', connId: activeId, result } })
+        set({ run: { status: 'done', connId: activeId, sql, offset, result } })
         patchConn(activeId, { tx: result.transaction })
       } catch (e) {
         if (seq !== runSeq) return
         const error = toAppError(e)
         const range = error.kind === 'cancelled' ? null : errorRange(sql, error)
         const errorAt = range ? lineCol(editor.getText(), offset + range[0]) : undefined
-        set((s) => ({ run: { status: 'error', connId: activeId, error, errorAt, result: s.run.result } }))
+        set((s) => ({ run: { status: 'error', connId: activeId, sql, offset, error, errorAt, result: s.run.result } }))
         if (error.transaction) patchConn(activeId, { tx: error.transaction })
         markDisconnectedIfGone(activeId, error)
         if (range) editor.showError({ from: offset + range[0], to: offset + range[1], message: error.message })
@@ -522,6 +539,61 @@ export const useApp = create<AppStore>((set, get) => {
 
     setRowFilter(value) {
       set({ rowFilter: value })
+    },
+
+    // -------------------------------------------------------------- AI
+
+    async saveAiSettings(input) {
+      const ai = await api.saveAiSettings(input)
+      set({ ai })
+      return ai
+    },
+
+    async fixQuery() {
+      const { run, ai } = get()
+      const editor = editorBridge.get()
+      const { error, sql, offset = 0, connId } = run
+      if (run.status !== 'error' || error?.kind !== 'database' || sql == null || !connId || !editor) return
+      if (run.fix?.status === 'working') return
+      if (!ai) {
+        set({ dialog: { kind: 'ai' } })
+        return
+      }
+
+      // Only touch the editor if the failed statement is still where it was.
+      const target = fixTarget(sql, error)
+      const from = offset + target.from
+      const to = offset + target.to
+      const unchanged = () => editor.getText().slice(from, to) === target.text
+      if (!unchanged()) {
+        get().toast('The editor changed since this run. Run it again, then fix.')
+        return
+      }
+
+      const seq = runSeq
+      const setFix = (fix: FixState) => set((s) => (seq === runSeq ? { run: { ...s.run, fix } } : {}))
+      setFix({ status: 'working' })
+      try {
+        const result = await api.fixSql(connId, {
+          sql: target.text,
+          message: error.message,
+          detail: error.detail,
+          hint: error.hint,
+          code: error.code,
+          line: target.line,
+          col: target.col,
+        })
+        if (seq !== runSeq) return
+        if (!unchanged()) {
+          setFix({ status: 'error', error: { kind: 'invalid', message: 'The editor changed while the fix was on its way, so it wasn’t applied.' } })
+          return
+        }
+        editor.replaceRange(from, to, result.sql)
+        editor.focus()
+        setFix({ status: 'applied', explanation: result.explanation })
+      } catch (e) {
+        setFix({ status: 'error', error: toAppError(e) })
+      }
     },
 
     // -------------------------------------------------------------- saved queries
@@ -580,10 +652,4 @@ export function errorRange(sql: string, error: AppError): [number, number] | nul
     return [from, Math.max(to, Math.min(from + 1, sql.length))]
   }
   return error.statementRange ?? null
-}
-
-function lineCol(text: string, offset: number): { line: number; col: number } {
-  const before = text.slice(0, offset)
-  const line = before.split('\n').length
-  return { line, col: offset - before.lastIndexOf('\n') }
 }

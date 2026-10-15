@@ -119,6 +119,7 @@ export type ErrorKind =
   | 'keychain'
   | 'config'
   | 'invalid'
+  | 'ai'
 
 export interface AppError {
   kind: ErrorKind
@@ -137,3 +138,38 @@ export type Loadable<T> =
   | { state: 'loading' }
   | { state: 'ready'; data: T }
   | { state: 'error'; error: string }
+
+/** Which wire format to speak. 'openai' covers any OpenAI-compatible server (OpenRouter, Ollama, …). */
+export type AiProvider = 'openai' | 'anthropic' | 'gemini'
+
+export interface AiStatus {
+  provider: AiProvider
+  baseUrl: string
+  model: string
+  hasKey: boolean
+}
+
+export interface AiInput {
+  provider: AiProvider
+  baseUrl: string
+  model: string
+  /** undefined keeps the saved key, '' removes it. */
+  apiKey?: string
+}
+
+export interface FixInput {
+  /** Just the failing statement. */
+  sql: string
+  message: string
+  detail?: string
+  hint?: string
+  code?: string
+  /** 1-based line and column of the error within `sql`. */
+  line?: number
+  col?: number
+}
+
+export interface FixResult {
+  sql: string
+  explanation: string
+}

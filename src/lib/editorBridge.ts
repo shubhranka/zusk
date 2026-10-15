@@ -13,6 +13,8 @@ export interface EditorHandle {
   /** Selected text and where it starts, or null when nothing is selected. */
   getSelection(): { text: string; from: number } | null
   setText(text: string): void
+  /** Replaces `from`–`to` with `text` and selects it, as one undoable edit. */
+  replaceRange(from: number, to: number, text: string): void
   focus(): void
   showError(diagnostic: EditorDiagnostic | null): void
 }

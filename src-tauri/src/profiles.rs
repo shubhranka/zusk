@@ -82,20 +82,25 @@ impl ProfileStore {
         Ok(())
     }
 
-    /// Writes atomically: a crash mid-write never leaves a truncated file.
     fn persist(&self, profiles: &[ConnectionProfile]) -> AppResult<()> {
         let file = ProfileFile { version: 1, connections: profiles.to_vec() };
-        let json = serde_json::to_string_pretty(&file).expect("profiles serialise");
-        if let Some(dir) = self.path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| config_error(dir, e.to_string()))?;
-        }
-        let tmp = self.path.with_extension("json.tmp");
-        std::fs::write(&tmp, json).map_err(|e| config_error(&tmp, e.to_string()))?;
-        std::fs::rename(&tmp, &self.path).map_err(|e| config_error(&self.path, e.to_string()))?;
-        Ok(())
+        write_json_atomic(&self.path, &file).map_err(|(path, reason)| config_error(&path, reason))
     }
 }
 
 fn config_error(path: &Path, reason: String) -> AppError {
     AppError::new(ErrorKind::Config, format!("Could not save connections to {}: {reason}", path.display()))
+}
+
+/// Writes atomically: a crash mid-write never leaves a truncated file. On
+/// failure, returns the path that failed and why, for the caller's message.
+pub(crate) fn write_json_atomic(path: &Path, value: &impl Serialize) -> Result<(), (PathBuf, String)> {
+    let json = serde_json::to_string_pretty(value).expect("settings serialise");
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| (dir.to_owned(), e.to_string()))?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, json).map_err(|e| (tmp.clone(), e.to_string()))?;
+    std::fs::rename(&tmp, path).map_err(|e| (path.to_owned(), e.to_string()))?;
+    Ok(())
 }

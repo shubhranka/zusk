@@ -210,3 +210,10 @@ export const AlertIcon = ({ size = 15, ...p }: P) => (
     <path d="M12 7.5v5.5M12 16.5v.01" />
   </svg>
 )
+
+export const SparkleIcon = ({ size = 14, ...p }: P) => (
+  <svg {...base(size, p)} stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 3.5l1.6 4.9 4.9 1.6-4.9 1.6L10 16.5l-1.6-4.9L3.5 10l4.9-1.6z" />
+    <path d="M18 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" />
+  </svg>
+)

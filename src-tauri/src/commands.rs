@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use serde::Deserialize;
 use tauri::State;
 
+use crate::ai::{self, AiInput, AiProvider, AiStatus, AiStore, FixInput, FixResult};
 use crate::db::catalog::{self, RelationRef, SchemaInfo, SchemaObjects, TableDetails};
 use crate::db::query::{self, RunResult};
 use crate::db::{ConnectParams, ServerInfo, Session, Sessions, SslMode};
@@ -17,9 +18,12 @@ use crate::secrets;
 
 pub struct AppState {
     pub profiles: ProfileStore,
+    pub ai: AiStore,
     pub sessions: Sessions,
     /// Every app launch starts read-only; the UI toggle switches it off.
     pub read_only: AtomicBool,
+    /// Shared by every AI provider call.
+    http: reqwest::Client,
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,8 +88,8 @@ fn params(profile: &ConnectionProfile, password: Option<String>) -> ConnectParam
 }
 
 impl AppState {
-    pub fn new(profiles: ProfileStore) -> Self {
-        AppState { profiles, sessions: Sessions::default(), read_only: AtomicBool::new(true) }
+    pub fn new(profiles: ProfileStore, ai: AiStore) -> Self {
+        AppState { profiles, ai, sessions: Sessions::default(), read_only: AtomicBool::new(true), http: ai::http_client() }
     }
 
     fn is_read_only(&self) -> bool {
@@ -194,6 +198,58 @@ impl AppState {
         }
         Ok(value)
     }
+
+    // -------------------------------------------------------------- AI
+
+    async fn ai_key(&self, provider: AiProvider) -> AppResult<Option<String>> {
+        blocking(move || secrets::get_password(provider.key_account())).await
+    }
+
+    pub async fn get_ai_settings(&self) -> AppResult<Option<AiStatus>> {
+        let Some(settings) = self.ai.get() else { return Ok(None) };
+        let has_key = self.ai_key(settings.provider).await?.is_some();
+        Ok(Some(settings.status(has_key)))
+    }
+
+    pub async fn save_ai_settings(&self, input: AiInput) -> AppResult<AiStatus> {
+        let settings = input.settings()?;
+        if let Some(key) = input.api_key {
+            let account = settings.provider.key_account();
+            let key = key.trim().to_owned();
+            blocking(move || if key.is_empty() { secrets::delete_password(account) } else { secrets::set_password(account, &key) }).await?;
+        }
+        self.ai.save(settings.clone())?;
+        let has_key = self.ai_key(settings.provider).await?.is_some();
+        Ok(settings.status(has_key))
+    }
+
+    /// Asks the model for a one-word reply with the form's values, without saving anything.
+    pub async fn test_ai(&self, input: AiInput) -> AppResult<String> {
+        let settings = input.settings()?;
+        let key = match input.api_key {
+            Some(key) => Some(key.trim().to_owned()),
+            None => self.ai_key(settings.provider).await?,
+        };
+        let reply = ai::complete(&self.http, &settings, key.as_deref(), "You are a connection check.", "Reply with just the word OK.").await?;
+        Ok(format!("{} replied “{}”", settings.model, ai::one_line(&reply, 60)))
+    }
+
+    pub async fn fix_sql(&self, id: String, input: FixInput) -> AppResult<FixResult> {
+        let settings = self
+            .ai
+            .get()
+            .ok_or_else(|| AppError::invalid("Set up an AI provider first.").with_hint("Open Settings → AI."))?;
+        let key = self.ai_key(settings.provider).await?;
+        let session = self.sessions.get(&id).await?;
+        // Best effort: a fix without schema context is still worth asking for.
+        let schema = match session.meta().await {
+            Ok(client) => ai::schema_context(&client, &input.sql).await.unwrap_or_default(),
+            Err(_) => String::new(),
+        };
+        let (system, user) = ai::fix_prompt(&input, &session.info.version, &schema);
+        let reply = ai::complete(&self.http, &settings, key.as_deref(), &system, &user).await?;
+        ai::parse_reply(&reply, &input.sql)
+    }
 }
 
 // ------------------------------------------------------------------ Tauri commands
@@ -271,4 +327,24 @@ pub async fn get_read_only(state: State<'_, AppState>) -> AppResult<bool> {
 #[tauri::command]
 pub async fn set_read_only(state: State<'_, AppState>, value: bool) -> AppResult<bool> {
     state.set_read_only(value).await
+}
+
+#[tauri::command]
+pub async fn get_ai_settings(state: State<'_, AppState>) -> AppResult<Option<AiStatus>> {
+    state.get_ai_settings().await
+}
+
+#[tauri::command]
+pub async fn save_ai_settings(state: State<'_, AppState>, input: AiInput) -> AppResult<AiStatus> {
+    state.save_ai_settings(input).await
+}
+
+#[tauri::command]
+pub async fn test_ai(state: State<'_, AppState>, input: AiInput) -> AppResult<String> {
+    state.test_ai(input).await
+}
+
+#[tauri::command]
+pub async fn fix_sql(state: State<'_, AppState>, id: String, input: FixInput) -> AppResult<FixResult> {
+    state.fix_sql(id, input).await
 }

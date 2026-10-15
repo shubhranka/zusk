@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { shortcut } from '../lib/platform'
 import { ACCENTS, statusLabel, useApp } from '../store/app'
+import { aiProviderLabel } from './AiSettingsDialog'
 import { GearIcon, LogoIcon, PlusIcon } from './Icons'
 import { JumpBox } from './JumpBox'
 
@@ -60,6 +61,8 @@ function SettingsButton() {
   const ref = useRef<HTMLDivElement>(null)
   const settings = useApp((s) => s.settings)
   const updateSettings = useApp((s) => s.updateSettings)
+  const ai = useApp((s) => s.ai)
+  const setDialog = useApp((s) => s.setDialog)
 
   useEffect(() => {
     if (!open) return
@@ -114,6 +117,20 @@ function SettingsButton() {
             Zebra rows
             <span className="track" aria-hidden />
           </button>
+          <h2>AI</h2>
+          <div className="field-row">
+            <span className="label">{ai ? `${aiProviderLabel(ai)} · ${ai.model}` : 'Not set up. Fix with AI corrects failed queries.'}</span>
+            <button
+              className="btn-secondary small"
+              style={{ alignSelf: 'flex-start' }}
+              onClick={() => {
+                setOpen(false)
+                setDialog({ kind: 'ai' })
+              }}
+            >
+              {ai ? 'Change provider…' : 'Set up…'}
+            </button>
+          </div>
           <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
             {shortcut('K')} jump · {shortcut('↵')} run · {shortcut('S')} save query
           </span>

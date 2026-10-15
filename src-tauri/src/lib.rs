@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod commands;
 pub mod db;
 pub mod error;
@@ -6,6 +7,7 @@ pub mod secrets;
 
 use tauri::Manager;
 
+use ai::AiStore;
 use commands::AppState;
 use profiles::ProfileStore;
 
@@ -16,7 +18,8 @@ pub fn run() {
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let profiles = ProfileStore::load(config_dir.join("connections.json"))?;
-            app.manage(AppState::new(profiles));
+            let ai = AiStore::load(config_dir.join("llm.json"));
+            app.manage(AppState::new(profiles, ai));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -35,6 +38,10 @@ pub fn run() {
             commands::cancel_query,
             commands::get_read_only,
             commands::set_read_only,
+            commands::get_ai_settings,
+            commands::save_ai_settings,
+            commands::test_ai,
+            commands::fix_sql,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Zusk");

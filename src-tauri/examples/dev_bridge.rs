@@ -5,8 +5,9 @@
 //!   cargo run --manifest-path src-tauri/Cargo.toml --example dev_bridge
 //!
 //! Development only: it listens on loopback, accepts requests from the Vite
-//! origin, keeps passwords in memory (not the keychain) and stores its
-//! connection list in a temp directory, separate from the desktop app.
+//! origin, keeps passwords and API keys in memory (not the keychain) and
+//! stores its connection list and AI settings in a temp directory, separate
+//! from the desktop app.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use axum::http::{HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Json, Router};
+use zusk_lib::ai::{AiInput, AiStore, FixInput};
 use zusk_lib::commands::{AppState, ConnectionInput};
 use zusk_lib::error::{AppError, AppResult};
 use zusk_lib::profiles::ProfileStore;
@@ -65,6 +67,17 @@ struct ValueArg {
     value: bool,
 }
 
+#[derive(Deserialize)]
+struct AiInputArg {
+    input: AiInput,
+}
+
+#[derive(Deserialize)]
+struct FixArg {
+    id: String,
+    input: FixInput,
+}
+
 fn args<T: DeserializeOwned>(value: Value) -> AppResult<T> {
     serde_json::from_value(value).map_err(|e| AppError::invalid(format!("Bad arguments: {e}")))
 }
@@ -102,6 +115,13 @@ async fn dispatch(state: &AppState, command: &str, a: Value) -> AppResult<Value>
         "cancel_query" => json(state.cancel_query(args::<IdArg>(a)?.id).await),
         "get_read_only" => json(state.get_read_only().await),
         "set_read_only" => json(state.set_read_only(args::<ValueArg>(a)?.value).await),
+        "get_ai_settings" => json(state.get_ai_settings().await),
+        "save_ai_settings" => json(state.save_ai_settings(args::<AiInputArg>(a)?.input).await),
+        "test_ai" => json(state.test_ai(args::<AiInputArg>(a)?.input).await),
+        "fix_sql" => {
+            let a: FixArg = args(a)?;
+            json(state.fix_sql(a.id, a.input).await)
+        }
         other => Err(AppError::invalid(format!("Unknown command {other}"))),
     }
 }
@@ -118,7 +138,8 @@ async fn main() {
     secrets::use_memory_store();
     let dir = std::env::temp_dir().join("zusk-dev-bridge");
     let profiles = ProfileStore::load(dir.join("connections.json")).expect("profile store");
-    let state = Arc::new(AppState::new(profiles));
+    let ai = AiStore::load(dir.join("llm.json"));
+    let state = Arc::new(AppState::new(profiles, ai));
 
     let cors = CorsLayer::new()
         .allow_origin(["http://localhost:1420".parse::<HeaderValue>().unwrap(), "http://127.0.0.1:1420".parse().unwrap()])

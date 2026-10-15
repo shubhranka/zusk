@@ -1,5 +1,6 @@
-//! Connection passwords in the OS keychain (macOS Keychain, Windows
-//! Credential Manager, Secret Service on Linux). One entry per profile id.
+//! Secrets in the OS keychain (macOS Keychain, Windows Credential Manager,
+//! Secret Service on Linux). One entry per account: connection passwords use
+//! the profile id, AI provider keys use "ai:<provider>".
 //!
 //! The browser dev bridge (examples/dev_bridge.rs) switches to an in-memory
 //! store instead; the desktop app always uses the keychain.
@@ -21,35 +22,35 @@ pub fn use_memory_store() {
     let _ = MEMORY.set(Mutex::new(HashMap::new()));
 }
 
-fn entry(profile_id: &str) -> AppResult<Entry> {
-    Ok(Entry::new(SERVICE, profile_id)?)
+fn entry(account: &str) -> AppResult<Entry> {
+    Ok(Entry::new(SERVICE, account)?)
 }
 
-pub fn get_password(profile_id: &str) -> AppResult<Option<String>> {
+pub fn get_password(account: &str) -> AppResult<Option<String>> {
     if let Some(memory) = MEMORY.get() {
-        return Ok(memory.lock().unwrap().get(profile_id).cloned());
+        return Ok(memory.lock().unwrap().get(account).cloned());
     }
-    match entry(profile_id)?.get_password() {
+    match entry(account)?.get_password() {
         Ok(password) => Ok(Some(password)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => Err(e.into()),
     }
 }
 
-pub fn set_password(profile_id: &str, password: &str) -> AppResult<()> {
+pub fn set_password(account: &str, password: &str) -> AppResult<()> {
     if let Some(memory) = MEMORY.get() {
-        memory.lock().unwrap().insert(profile_id.to_owned(), password.to_owned());
+        memory.lock().unwrap().insert(account.to_owned(), password.to_owned());
         return Ok(());
     }
-    Ok(entry(profile_id)?.set_password(password)?)
+    Ok(entry(account)?.set_password(password)?)
 }
 
-pub fn delete_password(profile_id: &str) -> AppResult<()> {
+pub fn delete_password(account: &str) -> AppResult<()> {
     if let Some(memory) = MEMORY.get() {
-        memory.lock().unwrap().remove(profile_id);
+        memory.lock().unwrap().remove(account);
         return Ok(());
     }
-    match entry(profile_id)?.delete_credential() {
+    match entry(account)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.into()),
     }

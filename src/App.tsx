@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 
+import { AiSettingsDialog } from './components/AiSettingsDialog'
 import { ConnectionDialog } from './components/connections/ConnectionDialog'
 import { Explorer } from './components/explorer/Explorer'
 import { Footer } from './components/Footer'
@@ -64,6 +65,7 @@ export function App() {
 
       {dialog?.kind === 'connection' && <ConnectionDialog key={dialog.id ?? 'new'} id={dialog.id} />}
       {dialog?.kind === 'saveQuery' && <SaveQueryDialog />}
+      {dialog?.kind === 'ai' && <AiSettingsDialog />}
 
       <div className="toasts" aria-live="polite">
         {toasts.map((t) => (

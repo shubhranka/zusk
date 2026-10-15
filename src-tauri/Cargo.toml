@@ -32,6 +32,11 @@ futures-util = "0.3"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 uuid = { version = "1", features = ["v4"] }
 thiserror = "2"
+# AI provider calls. native-tls matches the Postgres TLS stack above;
+# reqwest's default would pull in rustls and aws-lc as well.
+reqwest = { version = "0.13", default-features = false, features = ["json", "native-tls", "system-proxy"] }
+minijinja = "2"
+minijinja-contrib = { version = "2", default-features = false }
 
 # Only for examples/dev_bridge.rs (browser-based UI development) and tests.
 [dev-dependencies]

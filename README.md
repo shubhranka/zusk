@@ -108,6 +108,7 @@ All database work happens in a Rust core. The interface never talks to Postgres 
 - **psql-style scripts.** Scripts are split into statements and run one by one. The splitter handles quoted strings and identifiers, dollar quoting, nested comments and `BEGIN ATOMIC` bodies.
 - **Run what you mean.** <kbd>⌘</kbd><kbd>↵</kbd> runs the selection if there is one, otherwise the whole editor. **Stop** cancels the query on the server.
 - **Useful errors.** Failures show the SQLSTATE code, Postgres' detail and hint, and the exact line and column, underlined in the editor.
+- **Fix with AI.** When a statement fails, **Fix with AI** asks your model to correct it and swaps in the fix, which you can undo with <kbd>⌘</kbd><kbd>Z</kbd>. Set it up under **Settings → AI** with Anthropic, Gemini, or any OpenAI-compatible server (OpenAI, OpenRouter, Ollama, LM Studio). It sends the failing statement, the error, and the names and types of the tables involved, never row data. The API key is stored in the OS keychain.
 - **Saved queries.** Press <kbd>⌘</kbd><kbd>S</kbd> to keep a query in the sidebar and in the jump box.
 
 ### Read results
@@ -225,8 +226,9 @@ src-tauri/src/
   db/query.rs              running SQL, read-only enforcement, row cap, types
   db/splitter.rs           psql-style statement splitter
   db/catalog.rs            pg_catalog queries for the explorer and Structure tab
+  ai.rs                    AI providers (Anthropic, Gemini, OpenAI-compatible) and the Fix with AI prompt
   profiles.rs              saved connections (JSON in the app config dir, no passwords)
-  secrets.rs               passwords in the OS keychain
+  secrets.rs               passwords and API keys in the OS keychain
 docker/                    seed SQL, and the script that makes a localhost TLS certificate
 zusk-design.dc.html        the visual reference the UI is built from
 ```

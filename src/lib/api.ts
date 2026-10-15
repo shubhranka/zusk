@@ -3,9 +3,13 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import type {
+  AiInput,
+  AiStatus,
   AppError,
   ConnectionInput,
   ConnectionProfile,
+  FixInput,
+  FixResult,
   RelationRef,
   RunResult,
   SchemaInfo,
@@ -66,4 +70,9 @@ export const api = {
   cancelQuery: (id: string) => call<void>('cancel_query', { id }),
   getReadOnly: () => call<boolean>('get_read_only'),
   setReadOnly: (value: boolean) => call<boolean>('set_read_only', { value }),
+
+  getAiSettings: () => call<AiStatus | null>('get_ai_settings'),
+  saveAiSettings: (input: AiInput) => call<AiStatus>('save_ai_settings', { input }),
+  testAi: (input: AiInput) => call<string>('test_ai', { input }),
+  fixSql: (id: string, input: FixInput) => call<FixResult>('fix_sql', { id, input }),
 }

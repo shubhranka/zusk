@@ -46,6 +46,8 @@ pub enum ErrorKind {
     Config,
     /// Bad input from the UI.
     Invalid,
+    /// The AI provider failed or returned something unusable.
+    Ai,
 }
 
 impl AppError {
@@ -123,6 +125,27 @@ impl From<keyring::Error> for AppError {
 impl From<native_tls::Error> for AppError {
     fn from(err: native_tls::Error) -> Self {
         AppError::new(ErrorKind::Connection, format!("TLS setup failed: {err}"))
+    }
+}
+
+impl From<reqwest::Error> for AppError {
+    fn from(err: reqwest::Error) -> Self {
+        let message = if err.is_timeout() {
+            "The AI provider took too long to answer.".to_owned()
+        } else if err.is_connect() {
+            // The URL is the useful part ("connection refused" to localhost:11434, …).
+            let url = err.url().map(|u| format!(" at {}", u.origin().ascii_serialization())).unwrap_or_default();
+            format!("Could not reach the AI provider{url}.")
+        } else {
+            let mut message = format!("AI request failed: {err}");
+            let mut source = std::error::Error::source(&err);
+            while let Some(cause) = source {
+                message.push_str(&format!(": {cause}"));
+                source = cause.source();
+            }
+            message
+        };
+        AppError::new(ErrorKind::Ai, message)
     }
 }
 
