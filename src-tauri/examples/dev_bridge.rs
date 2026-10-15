@@ -63,6 +63,12 @@ struct SqlArg {
 }
 
 #[derive(Deserialize)]
+struct TemplateArg {
+    sql: String,
+    vars: Value,
+}
+
+#[derive(Deserialize)]
 struct ValueArg {
     value: bool,
 }
@@ -107,6 +113,10 @@ async fn dispatch(state: &AppState, command: &str, a: Value) -> AppResult<Value>
         "function_definition" => {
             let a: OidArg = args(a)?;
             json(state.function_definition(a.id, a.oid).await)
+        }
+        "render_template" => {
+            let a: TemplateArg = args(a)?;
+            json(state.render_template(a.sql, a.vars).await)
         }
         "run_query" => {
             let a: SqlArg = args(a)?;

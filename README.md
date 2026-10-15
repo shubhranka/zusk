@@ -109,6 +109,7 @@ All database work happens in a Rust core. The interface never talks to Postgres 
 - **Run what you mean.** <kbd>⌘</kbd><kbd>↵</kbd> runs the selection if there is one, otherwise the whole editor. **Stop** cancels the query on the server.
 - **Useful errors.** Failures show the SQLSTATE code, Postgres' detail and hint, and the exact line and column, underlined in the editor.
 - **Fix with AI.** When a statement fails, **Fix with AI** asks your model to correct it and swaps in the fix, which you can undo with <kbd>⌘</kbd><kbd>Z</kbd>. Set it up under **Settings → AI** with Anthropic, Gemini, or any OpenAI-compatible server (OpenAI, OpenRouter, Ollama, LM Studio). It sends the failing statement, the error, and the names and types of the tables involved, never row data. The API key is stored in the OS keychain.
+- **Jinja templates.** Turn on **Jinja** in the editor bar to render the editor as a template before it runs, in the dialect of Superset's SQL Lab: `{{ from_dttm }}`, `{{ to_dttm }}`, `filter_values()`, `get_filters()`, `url_param()` and the `where_in` filter. Set their values as JSON under **Variables**, which also previews the rendered SQL. Template errors are underlined in the editor. When the rendered SQL fails, the error shows the lines around the failure in the rendered SQL.
 - **Saved queries.** Press <kbd>⌘</kbd><kbd>S</kbd> to keep a query in the sidebar and in the jump box.
 
 ### Read results

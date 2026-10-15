@@ -4,6 +4,7 @@ pub mod db;
 pub mod error;
 pub mod profiles;
 pub mod secrets;
+pub mod template;
 
 use tauri::Manager;
 
@@ -34,6 +35,7 @@ pub fn run() {
             commands::describe_table,
             commands::list_relations,
             commands::function_definition,
+            commands::render_template,
             commands::run_query,
             commands::cancel_query,
             commands::get_read_only,

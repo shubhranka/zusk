@@ -19,7 +19,7 @@ import {
 import { editorBridge } from '../../lib/editorBridge'
 import { shortcut } from '../../lib/platform'
 import { detailsKey, useApp, type TreeData } from '../../store/app'
-import { editorTheme, qualifierHighlight, sqlHighlight } from './theme'
+import { editorTheme, jinjaHighlight, qualifierHighlight, sqlHighlight } from './theme'
 
 /** Tables, views and (already loaded) columns, for autocompletion. */
 function namespaceFor(tree: TreeData | undefined): SQLNamespace {
@@ -67,6 +67,8 @@ export function SqlEditor({ onSelectionChange }: { onSelectionChange(hasSelectio
 
   useEffect(() => {
     const language = new Compartment()
+    const jinja = new Compartment()
+    const jinjaFor = (on: boolean) => (on ? jinjaHighlight : [])
     const runKeys = Prec.highest(
       keymap.of([
         { key: 'Mod-Enter', run: () => (void useApp.getState().runQuery(), true) },
@@ -93,6 +95,7 @@ export function SqlEditor({ onSelectionChange }: { onSelectionChange(hasSelectio
           language.of(sqlLanguage({})),
           sqlHighlight,
           qualifierHighlight,
+          jinja.of(jinjaFor(useApp.getState().settings.jinja)),
           editorTheme,
           placeholder(`-- Write SQL, then press ${shortcut('↵')} to run it. Select text to run just that part.`),
           EditorView.contentAttributes.of({ 'aria-label': 'SQL editor', spellcheck: 'false', autocorrect: 'off', autocapitalize: 'off' }),
@@ -142,16 +145,22 @@ export function SqlEditor({ onSelectionChange }: { onSelectionChange(hasSelectio
       },
     })
 
-    // Keep autocompletion in step with what the explorer has loaded.
+    // Keep autocompletion in step with what the explorer has loaded, and
+    // Jinja highlighting with the toolbar switch.
     let lastTree: TreeData | undefined
-    const syncSchema = (state: ReturnType<typeof useApp.getState>) => {
+    let lastJinja = useApp.getState().settings.jinja
+    const syncState = (state: ReturnType<typeof useApp.getState>) => {
+      if (state.settings.jinja !== lastJinja) {
+        lastJinja = state.settings.jinja
+        view.dispatch({ effects: jinja.reconfigure(jinjaFor(lastJinja)) })
+      }
       const tree = state.activeId ? state.tree[state.activeId] : undefined
       if (tree === lastTree) return
       lastTree = tree
       view.dispatch({ effects: language.reconfigure(sqlLanguage(namespaceFor(tree))) })
     }
-    syncSchema(useApp.getState())
-    const unsubscribe = useApp.subscribe(syncSchema)
+    syncState(useApp.getState())
+    const unsubscribe = useApp.subscribe(syncState)
 
     return () => {
       unsubscribe()

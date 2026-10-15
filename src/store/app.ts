@@ -5,6 +5,7 @@ import { editorBridge } from '../lib/editorBridge'
 import { fixTarget, lineCol } from '../lib/fix'
 import { previewQuery } from '../lib/format'
 import { load, loadList, loadString, save, saveString } from '../lib/storage'
+import { DEFAULT_TEMPLATE_VARS, parseTemplateVars } from '../lib/template'
 import type {
   AiInput,
   AiStatus,
@@ -70,6 +71,8 @@ export interface Settings {
   density: Density
   zebra: boolean
   editorHeight: number
+  /** Render the editor as a Jinja template before running it. */
+  jinja: boolean
 }
 
 export type FixState = { status: 'working' } | { status: 'applied'; explanation: string } | { status: 'error'; error: AppError }
@@ -81,6 +84,8 @@ export interface RunState {
   /** The SQL that was run, and where it starts in the editor. */
   sql?: string
   offset?: number
+  /** With Jinja on: `sql` rendered, which is what reached Postgres. */
+  rendered?: string
   /** Last successful result; kept visible while the next run is going. */
   result?: RunResult
   error?: AppError
@@ -98,7 +103,7 @@ export interface TreeData {
   relations?: RelationRef[]
 }
 
-export type DialogState = { kind: 'connection'; id?: string } | { kind: 'saveQuery' } | { kind: 'ai' } | null
+export type DialogState = { kind: 'connection'; id?: string } | { kind: 'saveQuery' } | { kind: 'ai' } | { kind: 'templateVars' } | null
 
 export interface Toast {
   id: number
@@ -114,10 +119,11 @@ export type TreeGroup = 'tables' | 'views' | 'functions'
 const SETTINGS_KEY = 'zusk.settings'
 const SAVED_KEY = 'zusk.savedQueries'
 const LAST_CONN_KEY = 'zusk.lastConnection'
+const TEMPLATE_VARS_KEY = 'zusk.templateVars'
 
 export const ACCENTS = ['#F2A33A', '#6FB6F0', '#5CC8A8', '#E58FB8']
 
-const DEFAULT_SETTINGS: Settings = { accent: ACCENTS[0], density: 'comfortable', zebra: true, editorHeight: 196 }
+const DEFAULT_SETTINGS: Settings = { accent: ACCENTS[0], density: 'comfortable', zebra: true, editorHeight: 196, jinja: false }
 
 export const nodeKey = (...parts: string[]) => parts.map(encodeURIComponent).join('/')
 export const detailsKey = (schema: string, name: string) => `${schema}\u0000${name}`
@@ -152,6 +158,8 @@ export interface AppStore {
   toasts: Toast[]
   /** The saved AI provider, or null when it isn't set up. */
   ai: AiStatus | null
+  /** JSON text of the Jinja template variables, as the user typed it. */
+  templateVars: string
 
   init(): Promise<void>
   updateSettings(patch: Partial<Settings>): void
@@ -185,6 +193,7 @@ export interface AppStore {
   cancelQuery(): Promise<void>
   setView(view: ResultView): void
   setRowFilter(value: string): void
+  setTemplateVars(text: string): void
 
   // AI
   saveAiSettings(input: AiInput): Promise<AiStatus>
@@ -254,6 +263,7 @@ export const useApp = create<AppStore>((set, get) => {
     dialog: null,
     toasts: [],
     ai: null,
+    templateVars: loadString(TEMPLATE_VARS_KEY) ?? DEFAULT_TEMPLATE_VARS,
 
     async init() {
       try {
@@ -491,7 +501,7 @@ export const useApp = create<AppStore>((set, get) => {
     },
 
     async runQuery() {
-      const { activeId, conns, run } = get()
+      const { activeId, conns, run, settings } = get()
       const editor = editorBridge.get()
       if (!editor) return
       if (!activeId || conns[activeId]?.status !== 'connected') {
@@ -510,17 +520,26 @@ export const useApp = create<AppStore>((set, get) => {
       const seq = ++runSeq
       editor.showError(null)
       set((s) => ({ run: { status: 'running', connId: activeId, startedAt: performance.now(), sql, offset, result: s.run.result } }))
+      let rendered: string | undefined
       try {
-        const result = await api.runQuery(activeId, sql)
+        if (settings.jinja) {
+          const parsed = parseTemplateVars(get().templateVars)
+          if (!parsed.ok) throw { kind: 'template', message: parsed.error, hint: 'Fix them under Variables.' } satisfies AppError
+          rendered = await api.renderTemplate(sql, parsed.vars)
+          if (seq !== runSeq) return
+        }
+        const result = await api.runQuery(activeId, rendered ?? sql)
         if (seq !== runSeq) return
-        set({ run: { status: 'done', connId: activeId, sql, offset, result } })
+        set({ run: { status: 'done', connId: activeId, sql, offset, rendered, result } })
         patchConn(activeId, { tx: result.transaction })
       } catch (e) {
         if (seq !== runSeq) return
         const error = toAppError(e)
-        const range = error.kind === 'cancelled' ? null : errorRange(sql, error)
+        // Once rendered, error positions point into the rendered SQL, which
+        // isn't what the editor shows; the error panel shows that instead.
+        const range = error.kind === 'cancelled' || rendered != null ? null : errorRange(sql, error)
         const errorAt = range ? lineCol(editor.getText(), offset + range[0]) : undefined
-        set((s) => ({ run: { status: 'error', connId: activeId, sql, offset, error, errorAt, result: s.run.result } }))
+        set((s) => ({ run: { status: 'error', connId: activeId, sql, offset, rendered, error, errorAt, result: s.run.result } }))
         if (error.transaction) patchConn(activeId, { tx: error.transaction })
         markDisconnectedIfGone(activeId, error)
         if (range) editor.showError({ from: offset + range[0], to: offset + range[1], message: error.message })
@@ -541,6 +560,11 @@ export const useApp = create<AppStore>((set, get) => {
       set({ rowFilter: value })
     },
 
+    setTemplateVars(text) {
+      saveString(TEMPLATE_VARS_KEY, text)
+      set({ templateVars: text })
+    },
+
     // -------------------------------------------------------------- AI
 
     async saveAiSettings(input) {
@@ -554,6 +578,8 @@ export const useApp = create<AppStore>((set, get) => {
       const editor = editorBridge.get()
       const { error, sql, offset = 0, connId } = run
       if (run.status !== 'error' || error?.kind !== 'database' || sql == null || !connId || !editor) return
+      // The failing statement only exists in the rendered SQL, not in the editor.
+      if (run.rendered != null) return
       if (run.fix?.status === 'working') return
       if (!ai) {
         set({ dialog: { kind: 'ai' } })

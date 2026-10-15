@@ -18,7 +18,8 @@ pub struct AppError {
     pub code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<usize>,
-    /// UTF-16 range of the statement that failed, when the error came from a run.
+    /// UTF-16 range of the statement that failed, when the error came from a
+    /// run, or of the template tag that failed to render.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub statement_range: Option<(usize, usize)>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -48,6 +49,8 @@ pub enum ErrorKind {
     Invalid,
     /// The AI provider failed or returned something unusable.
     Ai,
+    /// The editor's Jinja template failed to render.
+    Template,
 }
 
 impl AppError {

@@ -6,6 +6,7 @@ import { Explorer } from './components/explorer/Explorer'
 import { Footer } from './components/Footer'
 import { Header } from './components/Header'
 import { SaveQueryDialog } from './components/SaveQueryDialog'
+import { TemplateVarsDialog } from './components/TemplateVarsDialog'
 import { Workspace } from './components/Workspace'
 import { focusJumpBox, isMac } from './lib/platform'
 import { useApp } from './store/app'
@@ -66,6 +67,7 @@ export function App() {
       {dialog?.kind === 'connection' && <ConnectionDialog key={dialog.id ?? 'new'} id={dialog.id} />}
       {dialog?.kind === 'saveQuery' && <SaveQueryDialog />}
       {dialog?.kind === 'ai' && <AiSettingsDialog />}
+      {dialog?.kind === 'templateVars' && <TemplateVarsDialog />}
 
       <div className="toasts" aria-live="polite">
         {toasts.map((t) => (

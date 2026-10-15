@@ -174,7 +174,14 @@ export const LockIcon = ({ size = 14, open = false, ...p }: P & { open?: boolean
   </svg>
 )
 
-export const PencilIcon = ({ size = 14, ...p }: P) => (
+export const BracesIcon = ({ size = 14, ...p }: P) => (
+  <svg {...base(size, p)} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 4H7a2 2 0 0 0-2 2v3.5a2 2 0 0 1-2 2.5 2 2 0 0 1 2 2.5V18a2 2 0 0 0 2 2h1" />
+    <path d="M16 4h1a2 2 0 0 1 2 2v3.5a2 2 0 0 0 2 2.5 2 2 0 0 0-2 2.5V18a2 2 0 0 1-2 2h-1" />
+  </svg>
+)
+
+export const PencilIcon =({ size = 14, ...p }: P) => (
   <svg {...base(size, p)} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
     <path d="M13.5 6.5l4 4" />

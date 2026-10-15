@@ -14,7 +14,7 @@ use crate::db::query::{self, RunResult};
 use crate::db::{ConnectParams, ServerInfo, Session, Sessions, SslMode};
 use crate::error::{AppError, AppResult};
 use crate::profiles::{ConnectionProfile, ProfileStore};
-use crate::secrets;
+use crate::{secrets, template};
 
 pub struct AppState {
     pub profiles: ProfileStore,
@@ -178,6 +178,12 @@ impl AppState {
 
     // -------------------------------------------------------------- editor
 
+    /// Renders the editor's Jinja template into the SQL that will run.
+    pub async fn render_template(&self, sql: String, vars: serde_json::Value) -> AppResult<String> {
+        // Templates can loop; keep a slow one off the async workers.
+        blocking(move || template::render(&sql, &vars)).await
+    }
+
     pub async fn run_query(&self, id: String, sql: String) -> AppResult<RunResult> {
         let session = self.sessions.get(&id).await?;
         query::run(&session, &sql, self.is_read_only()).await
@@ -307,6 +313,11 @@ pub async fn list_relations(state: State<'_, AppState>, id: String) -> AppResult
 #[tauri::command]
 pub async fn function_definition(state: State<'_, AppState>, id: String, oid: u32) -> AppResult<String> {
     state.function_definition(id, oid).await
+}
+
+#[tauri::command]
+pub async fn render_template(state: State<'_, AppState>, sql: String, vars: serde_json::Value) -> AppResult<String> {
+    state.render_template(sql, vars).await
 }
 
 #[tauri::command]

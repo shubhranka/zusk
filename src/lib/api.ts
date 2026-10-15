@@ -17,6 +17,7 @@ import type {
   ServerInfo,
   TableDetails,
 } from './types'
+import type { TemplateVars } from './template'
 
 export function toAppError(e: unknown): AppError {
   if (e && typeof e === 'object' && 'kind' in e && 'message' in e) return e as AppError
@@ -66,6 +67,7 @@ export const api = {
   listRelations: (id: string) => call<RelationRef[]>('list_relations', { id }),
   functionDefinition: (id: string, oid: number) => call<string>('function_definition', { id, oid }),
 
+  renderTemplate: (sql: string, vars: TemplateVars) => call<string>('render_template', { sql, vars }),
   runQuery: (id: string, sql: string) => call<RunResult>('run_query', { id, sql }),
   cancelQuery: (id: string) => call<void>('cancel_query', { id }),
   getReadOnly: () => call<boolean>('get_read_only'),

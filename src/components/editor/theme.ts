@@ -4,7 +4,7 @@
 
 import { RangeSetBuilder } from '@codemirror/state'
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language'
-import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+import { Decoration, EditorView, MatchDecorator, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
 
 export const editorTheme = EditorView.theme(
@@ -44,6 +44,10 @@ export const editorTheme = EditorView.theme(
     },
     '.cm-placeholder': { color: 'var(--text-faint)', fontStyle: 'normal' },
     '.cm-qualifier': { color: 'var(--c-ident)' },
+    // Jinja tags win over the SQL colours of whatever is inside them.
+    '.cm-jinja, .cm-jinja *': { color: 'var(--c-jinja) !important' },
+    '.cm-jinja': { backgroundColor: 'var(--c-jinja-tint)', borderRadius: '3px' },
+    '.cm-jinja-comment, .cm-jinja-comment *': { color: 'var(--null) !important', fontStyle: 'italic' },
 
     '.cm-tooltip': {
       border: '1px solid var(--line-strong)',
@@ -142,6 +146,29 @@ export const qualifierHighlight = ViewPlugin.fromClass(
         })
       }
       return builder.finish()
+    }
+  },
+  { decorations: (v) => v.decorations },
+)
+
+/** Marks Jinja tags ({{ }}, {% %}, {# #}) when the editor is a template. Single-line tags only. */
+const jinjaMark = Decoration.mark({ class: 'cm-jinja' })
+const jinjaCommentMark = Decoration.mark({ class: 'cm-jinja-comment' })
+const jinjaMatcher = new MatchDecorator({
+  regexp: /\{\{.*?\}\}|\{%.*?%\}|\{#.*?#\}/g,
+  decoration: (m) => (m[0].startsWith('{#') ? jinjaCommentMark : jinjaMark),
+})
+
+export const jinjaHighlight = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+
+    constructor(view: EditorView) {
+      this.decorations = jinjaMatcher.createDeco(view)
+    }
+
+    update(update: ViewUpdate) {
+      this.decorations = jinjaMatcher.updateDeco(update, this.decorations)
     }
   },
   { decorations: (v) => v.decorations },

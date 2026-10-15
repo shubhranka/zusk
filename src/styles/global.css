@@ -34,6 +34,8 @@
   --c-string: #a8d5b5;
   --c-fk: #8fc8f5;
   --c-fk-tint: rgba(111, 182, 240, 0.16);
+  --c-jinja: #e59cc0;
+  --c-jinja-tint: rgba(229, 156, 192, 0.08);
 
   /* Overridden from settings at runtime. */
   --accent: #f2a33a;
@@ -582,7 +584,9 @@ input[type='search']::-webkit-search-cancel-button {
 }
 
 /* Read-only toggle: green when safe, red when writes are enabled. */
-.ro-toggle {
+.ro-toggle,
+.jinja-toggle,
+.jinja-vars {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -597,7 +601,9 @@ input[type='search']::-webkit-search-cancel-button {
   white-space: nowrap;
 }
 
-.ro-toggle:hover:not(:disabled) {
+.ro-toggle:hover:not(:disabled),
+.jinja-toggle:hover:not(:disabled),
+.jinja-vars:hover:not(:disabled) {
   background: var(--hover);
 }
 
@@ -625,6 +631,33 @@ input[type='search']::-webkit-search-cancel-button {
 
 .ro-toggle[aria-checked='false'] > .track::after {
   background: var(--danger);
+}
+
+/* Jinja toggle: neutral when off, accent when on, joined to its Variables button. */
+.jinja-group {
+  display: flex;
+}
+
+.jinja-toggle[aria-checked='true'] {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-tint);
+}
+
+.jinja-toggle[aria-checked='true']:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.jinja-group > .jinja-toggle:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.jinja-vars {
+  margin-left: -1px;
+  border-color: var(--accent-line);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 /* ------------------------------------------------------------------ explorer */
@@ -1503,6 +1536,67 @@ input[type='search']::-webkit-search-cancel-button {
   flex: none;
 }
 
+/* Where a rendered Jinja template failed. */
+.rendered-at {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.rendered-at .caption {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  color: var(--text-muted);
+}
+
+.rendered-at .caption .link-btn {
+  margin-left: auto;
+  flex: none;
+}
+
+.sql-excerpt {
+  margin: 0;
+  padding: 8px 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 20px;
+  color: var(--text-2);
+  overflow-x: auto;
+}
+
+.sql-excerpt .line {
+  padding: 0 12px 0 0;
+  white-space: pre;
+}
+
+.sql-excerpt .line.hit {
+  background: var(--danger-tint);
+  color: var(--text);
+}
+
+.sql-excerpt .n {
+  display: inline-block;
+  min-width: 4ch;
+  padding: 0 12px;
+  text-align: right;
+  color: var(--text-faint);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sql-excerpt mark {
+  background: none;
+  color: var(--danger);
+  text-decoration: underline wavy var(--danger);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 4px;
+}
+
 .command-panel {
   flex: none;
   padding: 16px 18px;
@@ -1694,6 +1788,10 @@ input[type='search']::-webkit-search-cancel-button {
   flex-direction: column;
 }
 
+.dialog.wide {
+  max-width: 760px;
+}
+
 .dialog-head {
   padding: 18px 20px 4px;
   display: flex;
@@ -1762,6 +1860,64 @@ input[type='search']::-webkit-search-cancel-button {
 .text-input.mono {
   font-family: var(--font-mono);
   font-size: 13px;
+}
+
+textarea.code-input {
+  padding: 10px 12px;
+  line-height: 1.55;
+  resize: vertical;
+  tab-size: 2;
+  min-height: 160px;
+}
+
+.help-list {
+  margin: -4px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.help-list code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.preview-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.preview-head .note {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.preview-head .link-btn {
+  margin-left: auto;
+}
+
+.sql-preview {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+  white-space: pre;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .select-input {

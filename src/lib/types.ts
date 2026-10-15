@@ -120,6 +120,7 @@ export type ErrorKind =
   | 'config'
   | 'invalid'
   | 'ai'
+  | 'template'
 
 export interface AppError {
   kind: ErrorKind
@@ -129,6 +130,7 @@ export interface AppError {
   code?: string
   /** 0-based UTF-16 offset into the SQL that was run. */
   position?: number
+  /** The statement that failed, or for a template error, the failing tag. */
   statementRange?: [number, number]
   elapsedMs?: number
   transaction?: TxState

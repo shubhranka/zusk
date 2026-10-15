@@ -1,12 +1,15 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
+import { toAppError } from '../lib/api'
+import { copyText } from '../lib/clipboard'
 import { formatCount, formatMs, plural } from '../lib/format'
 import { MOD, shortcut } from '../lib/platform'
-import type { RunResult } from '../lib/types'
+import { excerpt, looksLikeTemplate } from '../lib/template'
+import type { AppError, RunResult } from '../lib/types'
 import { filterRows } from '../lib/values'
-import { detailsKey, useApp, type RunState } from '../store/app'
+import { detailsKey, errorRange, useApp, type RunState } from '../store/app'
 import { SqlEditor } from './editor/SqlEditor'
-import { AlertIcon, FilterIcon, LockIcon, PlayIcon, SparkleIcon, StopIcon } from './Icons'
+import { AlertIcon, BracesIcon, FilterIcon, LockIcon, PlayIcon, SparkleIcon, StopIcon } from './Icons'
 import { ResultsGrid } from './results/ResultsGrid'
 import { StructureTable } from './results/StructureTable'
 
@@ -122,7 +125,8 @@ function EditorCard({ run, hasSelection, onSelectionChange }: { run: RunState; h
   const doc = useApp((s) => s.doc)
   const editorHeight = useApp((s) => s.settings.editorHeight)
   const readOnly = useApp((s) => s.readOnly)
-  const { runQuery, cancelQuery, setReadOnly, updateSettings } = useApp.getState()
+  const jinja = useApp((s) => s.settings.jinja)
+  const { runQuery, cancelQuery, setReadOnly, updateSettings, setDialog } = useApp.getState()
   const running = run.status === 'running'
   const now = useNow(running)
   const [dragging, setDragging] = useState(false)
@@ -152,6 +156,28 @@ function EditorCard({ run, hasSelection, onSelectionChange }: { run: RunState; h
           <span className={run.status === 'error' && run.error?.kind !== 'cancelled' ? 'status error' : 'status'} aria-live="polite">
             {statusText(run, now)}
           </span>
+          <div className="jinja-group">
+            <button
+              className="jinja-toggle"
+              role="switch"
+              aria-checked={jinja}
+              onClick={() => updateSettings({ jinja: !jinja })}
+              title={
+                jinja
+                  ? 'Jinja is on: the editor is rendered as a template ({{ }}, {% %}) before it runs. Click to run it as plain SQL.'
+                  : 'Treat the editor as a Jinja template ({{ }}, {% %}) and render it before running.'
+              }
+            >
+              <BracesIcon size={13} />
+              Jinja
+              <span className="track" aria-hidden />
+            </button>
+            {jinja && (
+              <button className="jinja-vars" onClick={() => setDialog({ kind: 'templateVars' })} title="Template variables, and a preview of the rendered SQL">
+                Variables
+              </button>
+            )}
+          </div>
           <button
             className="ro-toggle"
             role="switch"
@@ -327,13 +353,17 @@ function DataView({ run, rows }: { run: RunState; rows: (string | null)[][] }) {
 function ErrorPanel({ run }: { run: RunState }) {
   const error = run.error!
   const fix = run.fix
-  const { fixQuery, setDialog } = useApp.getState()
-  const canFix = error.kind === 'database' && run.sql != null && fix?.status !== 'applied'
+  const jinja = useApp((s) => s.settings.jinja)
+  const { fixQuery, setDialog, updateSettings, runQuery } = useApp.getState()
+  // A rendered run's failing statement isn't in the editor, so there's nothing to rewrite.
+  const canFix = error.kind === 'database' && run.sql != null && run.rendered == null && fix?.status !== 'applied'
+  const unrenderedTemplate = !jinja && run.rendered == null && error.kind === 'database' && looksLikeTemplate(run.sql ?? '')
   const heading: Record<string, string> = {
     database: 'Query failed',
     readOnly: 'Blocked by read-only mode',
     connection: 'Connection problem',
     notConnected: 'Not connected',
+    template: 'Template error',
   }
   return (
     <div className="error-panel" role="alert">
@@ -357,6 +387,12 @@ function ErrorPanel({ run }: { run: RunState }) {
             {fix?.status === 'working' ? 'Fixing…' : 'Fix with AI'}
           </button>
         )}
+        {error.kind === 'template' && (
+          <button className="btn-secondary small fix-btn" onClick={() => setDialog({ kind: 'templateVars' })}>
+            <BracesIcon />
+            Variables
+          </button>
+        )}
       </div>
       <div className="message">{error.message}</div>
       {error.detail && (
@@ -375,6 +411,22 @@ function ErrorPanel({ run }: { run: RunState }) {
         <div className="extra">
           <span>Transaction: </span>
           the open transaction is aborted — run ROLLBACK to continue.
+        </div>
+      )}
+      {run.rendered != null && <RenderedSqlAt sql={run.rendered} error={error} />}
+      {unrenderedTemplate && (
+        <div className="fix-note" role="status">
+          <BracesIcon />
+          <span>This SQL has Jinja tags, which Postgres can’t read. Turn on Jinja to render them before the query runs.</span>
+          <button
+            className="link-btn"
+            onClick={() => {
+              updateSettings({ jinja: true })
+              void runQuery()
+            }}
+          >
+            Turn on Jinja and run
+          </button>
         </div>
       )}
       {fix?.status === 'applied' && (
@@ -397,6 +449,57 @@ function ErrorPanel({ run }: { run: RunState }) {
             </button>
           )}
         </div>
+      )}
+    </div>
+  )
+}
+
+/** Where a rendered template's SQL failed, since the editor only shows the template. */
+function RenderedSqlAt({ sql, error }: { sql: string; error: AppError }) {
+  const toast = useApp((s) => s.toast)
+  const range = errorRange(sql, error)
+  const at = range ? excerpt(sql, range[0]) : null
+
+  const copy = async () => {
+    try {
+      await copyText(sql)
+      toast('Rendered SQL copied')
+    } catch (e) {
+      toast(toAppError(e).message, 'danger')
+    }
+  }
+
+  return (
+    <div className="rendered-at">
+      <div className="caption">
+        <span>{at ? `In the rendered SQL, line ${at.line}, column ${at.col}:` : 'The template rendered, then the SQL failed.'}</span>
+        <button className="link-btn" onClick={() => void copy()}>
+          Copy rendered SQL
+        </button>
+      </div>
+      {at && range && (
+        <pre className="sql-excerpt">
+          {at.lines.map((l) => {
+            if (l.n !== at.line) {
+              return (
+                <div key={l.n} className="line">
+                  <span className="n">{l.n}</span>
+                  {l.text}
+                </div>
+              )
+            }
+            const start = at.col - 1
+            const end = Math.min(l.text.length, start + Math.max(1, range[1] - range[0]))
+            return (
+              <div key={l.n} className="line hit">
+                <span className="n">{l.n}</span>
+                {l.text.slice(0, start)}
+                <mark>{l.text.slice(start, end) || ' '}</mark>
+                {l.text.slice(end)}
+              </div>
+            )
+          })}
+        </pre>
       )}
     </div>
   )
