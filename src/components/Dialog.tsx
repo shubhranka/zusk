@@ -1,0 +1,47 @@
+import { useEffect, useRef, type ReactNode } from 'react'
+
+/** Modal shell: Escape or a click on the backdrop closes it; focus goes to the first field. */
+export function Dialog({
+  title,
+  description,
+  wide,
+  onClose,
+  children,
+}: {
+  title: string
+  description?: ReactNode
+  wide?: boolean
+  onClose(): void
+  children: ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  // Callers pass a fresh onClose each render; keep the latest in a ref so the
+  // mount effect below doesn't re-run (and steal focus) on every keystroke.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    ref.current?.querySelector<HTMLElement>('input, select, textarea, button')?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      previous?.focus?.()
+    }
+  }, [])
+
+  return (
+    <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={ref} className={wide ? 'dialog wide' : 'dialog'} role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+        <div className="dialog-head">
+          <h2 id="dialog-title">{title}</h2>
+          {description && <p>{description}</p>}
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}

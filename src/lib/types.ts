@@ -1,0 +1,253 @@
+// Mirrors the serde types in src-tauri/src. Keep the two in sync.
+
+export type SslMode = 'disable' | 'prefer' | 'require' | 'verify-ca' | 'verify-full'
+
+export interface ConnectionProfile {
+  id: string
+  name: string
+  host: string
+  port: number
+  database: string
+  user: string
+  sslMode: SslMode
+}
+
+export interface ConnectionInput extends Omit<ConnectionProfile, 'id'> {
+  id?: string
+  /** undefined keeps the saved password, '' removes it. */
+  password?: string
+}
+
+export interface ServerInfo {
+  version: string
+  encoding: string
+  user: string
+  database: string
+  host: string
+  port: number
+  ssl: boolean
+}
+
+export interface SchemaInfo {
+  name: string
+  /** Tables and views in the schema. */
+  relationCount: number
+}
+
+export type RelationKind = 'table' | 'partitionedTable' | 'foreignTable' | 'view' | 'materializedView'
+
+export interface RelationInfo {
+  name: string
+  kind: RelationKind
+  rowEstimate: number | null
+  sizeBytes: number | null
+}
+
+export interface FunctionInfo {
+  oid: number
+  name: string
+  arguments: string
+  result: string | null
+  isProcedure: boolean
+}
+
+export interface SchemaObjects {
+  tables: RelationInfo[]
+  views: RelationInfo[]
+  functions: FunctionInfo[]
+}
+
+export interface ColumnInfo {
+  name: string
+  dataType: string
+  nullable: boolean
+  defaultValue: string | null
+  identity: 'always' | 'by default' | null
+  generated: string | null
+  isPrimaryKey: boolean
+  isForeignKey: boolean
+  isUnique: boolean
+  references: string | null
+  comment: string | null
+}
+
+export interface TableDetails {
+  schema: string
+  name: string
+  kind: RelationKind
+  rowEstimate: number | null
+  sizeBytes: number | null
+  indexCount: number
+  comment: string | null
+  columns: ColumnInfo[]
+}
+
+export interface RelationRef {
+  schema: string
+  name: string
+  kind: RelationKind
+}
+
+export type ValueKind = 'num' | 'bool' | 'date' | 'json' | 'text'
+
+export interface ResultColumn {
+  name: string
+  typeName: string
+  kind: ValueKind
+}
+
+export type TxState = 'readOnly' | 'idle' | 'inTransaction' | 'failed'
+
+export interface RunResult {
+  columns: ResultColumn[]
+  rows: (string | null)[][]
+  hasResultSet: boolean
+  truncated: boolean
+  rowCount: number
+  command: string
+  statementCount: number
+  elapsedMs: number
+  transaction: TxState
+}
+
+export type ErrorKind =
+  | 'database'
+  | 'connection'
+  | 'notConnected'
+  | 'readOnly'
+  | 'cancelled'
+  | 'keychain'
+  | 'config'
+  | 'invalid'
+  | 'ai'
+  | 'template'
+
+export interface AppError {
+  kind: ErrorKind
+  message: string
+  detail?: string
+  hint?: string
+  code?: string
+  /** 0-based UTF-16 offset into the SQL that was run. */
+  position?: number
+  /** The statement that failed, or for a template error, the failing tag. */
+  statementRange?: [number, number]
+  elapsedMs?: number
+  transaction?: TxState
+}
+
+export type Loadable<T> =
+  | { state: 'loading' }
+  | { state: 'ready'; data: T }
+  | { state: 'error'; error: string }
+
+/** Which wire format to speak. 'openai' covers any OpenAI-compatible server (OpenRouter, Ollama, …). */
+export type AiProvider = 'openai' | 'anthropic' | 'gemini'
+
+export interface AiStatus {
+  provider: AiProvider
+  baseUrl: string
+  model: string
+  hasKey: boolean
+}
+
+export interface AiInput {
+  provider: AiProvider
+  baseUrl: string
+  model: string
+  /** undefined keeps the saved key, '' removes it. */
+  apiKey?: string
+}
+
+export interface FixInput {
+  /** Just the failing statement. */
+  sql: string
+  message: string
+  detail?: string
+  hint?: string
+  code?: string
+  /** 1-based line and column of the error within `sql`. */
+  line?: number
+  col?: number
+}
+
+export interface FixResult {
+  sql: string
+  explanation: string
+}
+
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  text: string
+  /** The editor contents an assistant turn proposed. */
+  sql?: string
+}
+
+export interface ChatInput {
+  /** Everything in the editor right now. */
+  sql: string
+  /** The conversation so far, oldest first, ending with the user's request. */
+  turns: ChatTurn[]
+  /** The editor is rendered as a Jinja template before it runs. */
+  jinja: boolean
+}
+
+export interface ChatResult {
+  /** What the model said, without the SQL. */
+  reply: string
+  /** The new editor contents, or null when nothing should change. */
+  sql: string | null
+}
+
+export interface AgentToolCall {
+  id: string
+  name: string
+  /** The model's arguments: an object, or the raw text when it wasn't valid JSON. */
+  args: unknown
+  /** Gemini's thought signature, which goes back with the call. */
+  signature?: string
+}
+
+export interface QueryPreview {
+  /** The connection the query ran on. */
+  connId: string
+  result: RunResult
+}
+
+export interface AgentToolResult {
+  callId: string
+  name: string
+  /** What the model reads. */
+  content: string
+  isError: boolean
+  /** One line for the activity list, e.g. "42 rows · 31 ms". */
+  summary: string
+  /** run_query's result, for the panel. Never sent back. */
+  preview?: QueryPreview
+}
+
+/** One entry of the agent's conversation, as the backend reads it. */
+export type AgentMessage =
+  | { role: 'user'; text: string }
+  | { role: 'assistant'; text: string; toolCalls: AgentToolCall[] }
+  /** The results of the assistant message before it, one per tool call. */
+  | { role: 'tool'; results: AgentToolResult[] }
+
+export interface AgentInput {
+  /** The conversation so far, oldest first. */
+  messages: AgentMessage[]
+  /** The connection selected in the explorer: what tools use by default. */
+  connection: string | null
+  /** Out of steps: ask for the answer, without more tool calls. */
+  finish: boolean
+}
+
+export interface AgentStep {
+  /** What the model said. With no tool calls, this is the answer. */
+  text: string
+  toolCalls: AgentToolCall[]
+  /** One per tool call, in the same order. */
+  results: AgentToolResult[]
+  /** Saved connections the tools opened. */
+  opened: { id: string; info: ServerInfo }[]
+}
